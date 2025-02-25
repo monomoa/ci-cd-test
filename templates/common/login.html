@@ -1,0 +1,44 @@
+{% extends "board_base.html" %}
+{% block content %}
+
+<section class="login-block">
+<div class="container">
+  <div class="row">
+    <div class="card col-lg-4">
+      <div class="card-body">
+        <h1 class="text-center mt-4 mb-5">LOGIN</h1>
+
+        <form method="post" action="{% url 'common:login' %}">
+          {% csrf_token %}
+          {% include 'form_errors.html' %}
+          <div class="input-group mb-4">
+            <input type="text" class="form-control" name="username" id="username"
+              placeholder="Enter User ID" value="{{ form.username.value | default_if_none:'' }}">
+          </div>
+          <div class="input-group mb-3">
+            <input type="password" class="form-control" name="password" id="password" 
+            placeholder="Enter User Password" value="{{ form.password.value | default_if_none:'' }}">
+          </div>
+          <div class="d-grid gap-1">
+            <button type="submit" class="btn btn-outline-dark mt-4">로그인</button>
+          </div>
+        </form>
+
+      </div>
+      <div class="card-footer text-muted text-center">
+        <i class="fs-2 mx-2 fa-brands fa-instagram-square"></i>
+        <i class="fs-2 mx-2 fa-brands fa-facebook-square"></i>
+        <i class="fs-2 mx-2 fa-brands fa-google"></i>
+        <i class="fs-2 mx-2 fa-brands fa-apple"></i>
+      </div>
+    </div>
+    <div class="col-lg-8">
+      <div class="card">
+        <img class="card-img-top" src="https://static.pexels.com/photos/33972/pexels-photo.jpg" alt="...">
+      </div>
+    </div> 
+  </div>
+</div>
+</section>
+
+{% endblock %}

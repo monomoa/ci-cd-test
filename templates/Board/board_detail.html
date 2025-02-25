@@ -1,0 +1,69 @@
+{% extends "board_base.html" %}
+{% block content %}
+<section class="board_detail-block">
+  <div class="container mt-3">
+  <div class="card border-dark mb-3">
+
+    <div class="card-header">
+      <h4 class="pt-1">{{ object.title }}</h4>
+      {% if object.modify_date %}
+        <p class="pt-1">Created by {{ object.author }} on {{ object.modify_date }}</p>
+      {% else %}
+        <p class="pt-1">Created by {{ object.author }} on {{ object.create_date }}</p>
+      {% endif %}
+    </div>
+    
+    <div class="card-header">
+      {% if object.file_upload %}
+      <a href="{% url 'Board:Board_download' object.id %}" class="text-decoration-none text-muted" role="button" download>
+        첨부파일 : <i class="fa-solid fa-file-lines me-2"></i>{{object.filename}}
+      </a>
+      {% else %}
+      <a class="text-decoration-none text-muted">첨부파일 : </a>
+      {% endif %}
+    </div>
+
+    <div class="card-body text-dark">
+      <p class="card-text">{{ object.content | linebreaksbr }}</p>
+      <div class="mt-4"></div>
+    </div>
+    
+    <div class="card-footer d-flex justify-content-between">
+      <a href="/" class="btn btn-outline-dark">목록</a>
+      {% if user == object.author %}
+      <span>
+        <a href="{% url 'Board:board_update' object.id %}" class="btn btn-outline-dark">수정</a>
+        <a href="#" class="delete btn btn-outline-dark" data-uri="{% url 'Board:board_delete' object.id %}">삭제</a>
+      </span>
+      {% else %}
+      <span>
+        <a href="#" class="user_check btn btn-outline-dark">수정</a>
+        <a href="#" class="user_check btn btn-outline-dark">삭제</a>
+      </span>
+      {% endif %}
+    </div>
+
+    
+  </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block script %}
+
+<script type='text/javascript'>
+  $(document).ready(function() {
+    $(".delete").on('click', function() {
+      if(confirm("정말로 삭제하시겠습니까?")) {
+        location.href = $(this).data('uri');
+      }
+    });
+  });
+  $(document).ready(function() {
+    $(".user_check").on('click', function() {
+      alert("자신의 게시글만 수정 및 삭제가 가능합니다.")
+    });
+  });
+</script>
+
+{% endblock %}

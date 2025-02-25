@@ -1,0 +1,40 @@
+{% load static %}
+<!-- Navbar 영역 -->
+<nav class="navbar navbar-expand-lg navbar-light bg-white container my-3">
+  <div class="container">
+
+    <!-- Logo 영역 -->
+    <a class="mb-2 navbar-brand" href="/"><img src="{% static "Board/images/logo.png" %}" width="70" height="40" alt=""> Python DJango</a>
+
+    <!-- 햄버거 메뉴 영역 (data-target : Menu ID)-->
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <!-- Navbar Content 영역 -->
+    <div class="collapse navbar-collapse justify-content-end" id="navbarContent">
+      <ul class="navbar-nav mb-2 mb-lg-0">
+        {% if user.is_anonymous %}
+        <li class="me-2">
+          <a class="nav-link" href="{% url 'common:login' %}">
+            <i class="fa-solid fa-user me-2"></i>로그인</a>
+        </li>
+        <li>
+          <a class="nav-link" href="{% url 'common:signup' %}">
+            <i class="fa-solid fa-user-plus me-2"></i>회원가입</a>
+        </li>
+        {% else %}  
+        <li class="me-2">
+        <a class="nav-link" href="{% url 'Board:board_create' %}">
+          <i class="me-2 fa-solid fa-pencil"></i>Board Write</a>
+        </li>
+        <li class="me-2">
+          <a class="nav-link" href="{% url 'common:logout' %}">
+            <i class="fa-solid fa-right-from-bracket me-2"></i>로그아웃 [ {{user.username}} ]</a>
+        </li>
+        {% endif %}
+      </ul>
+    </div>
+
+  </div>
+</nav>
