@@ -1,0 +1,93 @@
+# Main Branch Push 발생 시 AWS ECR Push Action을 수행 ( AWS ECS 관련 ENV, Job 삭제 )
+name: AWS ECR Push & Helm Chart Update                 
+on:                                                                  # WorkFlow 동작 트리거영역
+  push:                                                              # "main" Branche에서 Push 발생 시 WorkFlow 동작
+    branches: [ "main" ]
+
+# WorkFlow Job 영역에서 사용 할 환경변수 정의
+env:
+  AWS_REGION: ap-northeast-2                                         # AWS REGION 정보 입력 ( 서울리전 : ap-northeast-2 )
+  ECR_REPOSITORY: django                                             # AWS ECR Repository 이름 입력 ( django )
+
+permissions:
+  contents: read
+
+# WorkFlow Job 영역 ( 실제 수행 작업 정의 )
+jobs:
+  build:                                                             # Build Job 영역 시작
+    name: Image-Build                                                # 이름 지정
+    runs-on: ubuntu-latest                                           # Runner 지정 ( Job-Container )
+    environment: production                                          # Job 식별 환경변수
+
+    # AWS ECR Repository Push
+    steps:
+    - name: Checkout                                                 # ci-cd-test GitHub Repository Checkout (File Load)
+      uses: actions/checkout@v3                                      # Checkout Action 사용 ( Action: 특정 작업을 수행하는 미리 정의 된 기능 )
+
+    - name: Configure AWS credentials                                # AWS Credentials 정보 정의 
+      uses: aws-actions/configure-aws-credentials@v1                 # configure-aws-credentials Action 사용
+      with:                                                          # ci-cd-test Repository 생성 시 정의 한 Secrets 환경변수 사용
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}          # AWS_ACCESS_KEY_ID Secrets 환경변수
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}  # AWS_SECRET_ACCESS_KEY Secrets 환경변수 
+        aws-region: ${{ env.AWS_REGION }}                            # AWS REGION 정보
+
+    - name: Login to Amazon ECR                                      # AWS ECR Login 정보 정의
+      id: login-ecr                                                  # ECR Login 작업 식별 ID 정의 ( Steps 내부 각 작업을 식별하는 값 )
+      uses: aws-actions/amazon-ecr-login@v1                          # amazon-ecr-login Action 사용
+
+    - name: Get image tag(version)                                   # Image Tag 정보 정의
+      id: tag-image                                                  # Image Tag 작업 식별 ID 정의
+      run: |
+        VERSION=$(echo ${{ github.sha }} | cut -c1-5)                # GitHub Hash Value 5자리 추출 및 VERSION 변수 정의
+        echo VERSION=$VERSION                                        # VERSION 변수 재정의
+        echo "::set-output name=version::$VERSION"                   # 정의 된 VERSION 변수 OutPut 정의 ( Output 이름 : version )
+
+    - name: Build, tag, and push image to Amazon ECR                 # Image Build 및 Tagging / ECR Push
+      id: build-image                                                # Image Build 및 Tagging / ECR Push 작업 식별 ID 정의
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}        # ECR Login 작업 결과에서 Registry 정보를 가져와 ECR_REGISTRY 환경변수로 등록
+        ECR_REPOSITORY: django                                       # ECR Repository 정보를 환경변수로 등록
+        IMAGE_TAG: ${{ steps.tag-image.outputs.version }}            # IMAGE_TAG 환경변수에 tag-image 작업에서 정의한 값을 등록
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .   # Container Image Build 
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG         # Container Image AWS ECR Push
+        echo "::set-output name=repository::$ECR_REPOSITORY"         # 정의 된 ECR_REPOSITORY 환경변수 OutPut 정의 ( Output 이름 : repository )
+        echo "::set-output name=tag-image::$IMAGE_TAG"               # 정의 된 IMAGE_TAG 환경변수 OutPut 정의 ( Output 이름 : tag-image )
+
+    outputs:                                                         # Job Output 정의
+      image_tag: ${{ steps.tag-image.outputs.version }}              # Image Tag 정보 출력
+      sha: ${{ github.sha }}                                         # GitHub Hash 출력
+
+  deploy:                                                            # Deploy Job 영역 시작
+    needs: build                                                     # Build Job 완료 후 Deploy Job 수행
+    name: Helm Chart Update                                          # 이름 지정
+    runs-on: ubuntu-latest                                           # Runner 지정 ( Job-Container )
+    env:                                                             # Deploy Job 환경변수 정의
+      IMAGE_TAG: ${{ needs.build.outputs.image_tag }}                # Build Job에서 정의한 Outputs image_tag를 이용하여 IMAGE_TAG 환경변수 정의
+      GIT_ACCESS_TOKEN: ${{ secrets.GIT_HUB_TOKEN }}                 # GIT_HUB_TOKEN Secrets 환경변수
+      HASH: ${{ needs.build.outputs.sha }}                           # Build Job에서 정의한 Outputs sha를 이용하여 HASH 환경변수 정의
+      GIT_REPO: monomoa/helm-chart-django			     # Helm Chart Repo 주소 ( 주소가 아닌 Repo의 Owner/Name 형식으로 작성 )
+      
+    steps:
+      - name: Clone Deploy repository                                # 위에서 정의 된 환경변수를 활용하여 Helm Chart Repo Clone
+        uses: actions/checkout@v2                                    # Checkout Action 사용
+        with:
+          repository: ${{ env.GIT_REPO }}                            # Helm Chart Repo 지정
+          ref: 'main'                                                # Main Branch 지정
+          token: ${{ env.GIT_ACCESS_TOKEN }}                         # GitHub Access Token 지정
+      
+      - name: Image Tag Change                                       # Clone 된 Helm Chart Repo Image Tag 변경
+        uses: mikefarah/yq@v4.9.6                                    # mikefarah/yq@v4.9.6 Action 사용
+        with:                                                        # values.yaml -> ".image.tag"를 찾아 변경 된 Tag로 Replace
+          cmd: yq e --inplace '.image.tag = "${{ env.IMAGE_TAG }}"' values.yaml
+      
+      - name: Create Pull Request                                    # Helm Chart Repo Pull Request 생성 
+        uses: peter-evans/create-pull-request@v3                     # peter-evans/create-pull-request Action 사용
+        with:
+          title: 'deploy: Django-${{ env.HASH }}'                    # Pull Request 작업 이름
+          token: ${{ env.GIT_ACCESS_TOKEN }}                         # GitHub Access Token 지정
+          base: main                                                 # Pull Request를 요청 할 Branch 지정 ( Helm Chart Repo )
+          branch: Django-${{ env.HASH }}                             # 변경 작업을 수행 할 Branch 지정 ( Action을 수행하는 곳애서 Branch 생성 )
+          commit-message: 'deploy: Django-${{ env.HASH }}'           # Commit Message 지정
+          labels: |                                                  # Pull Request Label 지정
+            automerge
